@@ -37,6 +37,30 @@ npm run build      # type-checks and outputs static files to dist/
 npm run preview
 ```
 
+## Deploying to GitHub Pages
+
+The app is a static site, and GitHub Pages serves it over HTTPS — which Web
+Bluetooth requires. A workflow at `.github/workflows/deploy.yml` builds and
+publishes automatically on every push to `main`/`master`.
+
+First-time setup:
+
+1. Push the repo to GitHub (a **public** repo is simplest; Pages on a private
+   repo needs a paid plan).
+2. Push once. The workflow self-enables Pages (via `actions/configure-pages`
+   with `enablement: true`), builds, and deploys.
+   - If your org disallows auto-enablement, enable it manually instead:
+     **Settings → Pages → Build and deployment → Source: GitHub Actions**, then
+     re-run the workflow (**Actions** tab → the failed run → **Re-run failed
+     jobs**).
+
+The app then lives at `https://<user>.github.io/<repo>/`. Every later push
+redeploys.
+
+Troubleshooting: check the **Actions** tab. A green **build** job with a failed
+**deploy** job almost always means Pages isn't enabled yet (see step 2). Vite's
+`base` is set to `./` so assets resolve correctly from the Pages subpath.
+
 ## Notes
 
 - Sounds are synthesized with the Web Audio API, so there are no audio files to
