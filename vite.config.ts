@@ -7,6 +7,10 @@ import react from "@vitejs/plugin-react";
 // http:// to a LAN IP).
 export default defineConfig({
   plugins: [react()],
+  // Relative base so the built app works from any path, including a GitHub Pages
+  // project subpath like https://<user>.github.io/<repo>/. The app has no
+  // client-side routing, so relative asset URLs are all that's needed.
+  base: "./",
   server: {
     host: true,
   },
