@@ -159,6 +159,57 @@ button.primary:hover:not(:disabled) {
   margin-top: 8px;
 }
 
+.timer.rest {
+  color: #7fb0ff;
+}
+
+.timer-caption {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #8b93a3;
+  margin-top: 2px;
+}
+
+/* Simplified, distraction-free view shown during an active hold. */
+.app.simplified {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.big-readout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4vh;
+  width: 100%;
+}
+
+.big-value {
+  font-size: 26vh;
+  font-weight: 800;
+  line-height: 0.9;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.15em;
+}
+
+.big-value.force-color {
+  color: #57e08a;
+}
+
+.big-unit {
+  font-size: 8vh;
+  font-weight: 600;
+  color: #8b93a3;
+}
+
 .status {
   margin-top: 14px;
   font-size: 1.05rem;

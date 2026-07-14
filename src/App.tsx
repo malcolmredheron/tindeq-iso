@@ -25,6 +25,7 @@ export function App() {
   // the incoming stream of samples never floods React with state updates.
   const [force, setForce] = useState(0);
   const [remaining, setRemaining] = useState(HOLD_MS);
+  const [restMs, setRestMs] = useState(0);
   const [phase, setPhase] = useState<Phase>("idle");
   const [successes, setSuccesses] = useState(0);
   const [failures, setFailures] = useState(0);
@@ -32,6 +33,9 @@ export function App() {
   // Mutable state read inside the BLE sample handler (which is registered once).
   const targetRef = useRef(targetKg);
   const holdStartRef = useRef<number | null>(null);
+  // When below the threshold, timestamp of when the rest period started (used
+  // for the count-up rest timer). Non-null only while phase is "waiting".
+  const restStartRef = useRef<number | null>(null);
   // Index of the next per-second progress beep (0..5) to play in this hold.
   const nextBeepRef = useRef(0);
   const forceRef = useRef(0);
@@ -67,6 +71,7 @@ export function App() {
           // beep 0 here makes it sound the instant we cross the threshold.
           if (f >= target) {
             holdStartRef.current = performance.now();
+            restStartRef.current = null; // rep started — stop the rest timer
             nextBeepRef.current = 0;
             setPhaseBoth("holding");
           }
@@ -79,6 +84,7 @@ export function App() {
               : performance.now() - holdStartRef.current;
           if (f < target) {
             holdStartRef.current = null;
+            restStartRef.current = performance.now(); // start resting
             setPhaseBoth("waiting");
             // Beeps just stop — going silent is the out-of-range cue.
             // Only a hold that survived a full second counts as a failed rep.
@@ -95,6 +101,7 @@ export function App() {
           // Hold completed. Wait for a release below target before arming the
           // next rep, so a sustained pull doesn't immediately re-trigger.
           if (f < target) {
+            restStartRef.current = performance.now(); // start resting
             setPhaseBoth("waiting");
           }
           break;
@@ -120,8 +127,12 @@ export function App() {
           playHoldBeep(nextBeepRef.current);
           nextBeepRef.current += 1;
         }
-      } else if (phaseRef.current !== "success") {
-        setRemaining(HOLD_MS);
+      } else {
+        if (phaseRef.current !== "success") setRemaining(HOLD_MS);
+        // Below the threshold and resting: run the count-up rest timer.
+        if (restStartRef.current !== null) {
+          setRestMs(performance.now() - restStartRef.current);
+        }
       }
       raf = requestAnimationFrame(tick);
     };
@@ -138,6 +149,7 @@ export function App() {
         setConnState("disconnected");
         setPhaseBoth("idle");
         holdStartRef.current = null;
+        restStartRef.current = null;
       },
     });
     deviceRef.current = dev;
@@ -147,6 +159,8 @@ export function App() {
       await dev.startMeasurement();
       setConnState("connected");
       holdStartRef.current = null;
+      restStartRef.current = performance.now(); // start resting before first rep
+      setRestMs(0);
       setPhaseBoth("waiting");
     } catch (e) {
       setConnState("disconnected");
@@ -162,6 +176,7 @@ export function App() {
 
   const disconnect = useCallback(async () => {
     holdStartRef.current = null;
+    restStartRef.current = null;
     setPhaseBoth("idle");
     await deviceRef.current?.disconnect();
     deviceRef.current = null;
@@ -183,8 +198,28 @@ export function App() {
   }, []);
 
   const connected = connState === "connected";
-  const remainingSec = remaining / 1000;
   const inRange = force >= targetKg;
+
+  // While above the threshold (an active hold), show the distraction-free view:
+  // just the force and the integer countdown, both large.
+  if (connected && (phase === "holding" || phase === "success")) {
+    const countdownSec =
+      phase === "success" ? 0 : Math.max(0, Math.ceil(remaining / 1000));
+    return (
+      <div className={`app phase-${phase} simplified`}>
+        <div className="big-readout">
+          <div className="big-value force-color">
+            {force.toFixed(1)}
+            <span className="big-unit">kg</span>
+          </div>
+          <div className="big-value">
+            {countdownSec}
+            <span className="big-unit">s</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`app phase-${phase}`}>
@@ -246,9 +281,10 @@ export function App() {
           <div className="threshold" />
         </div>
 
-        <div className="timer">
-          {phase === "holding" ? remainingSec.toFixed(1) : HOLD_SECONDS.toFixed(1)}
-          <span className="unit">s</span>
+        {/* Below the threshold: count up to track rest between reps. */}
+        <div className="timer rest">
+          {formatRest(restMs)}
+          <span className="timer-caption">rest</span>
         </div>
 
         <p className="status">{statusText(connState, phase, inRange)}</p>
@@ -268,11 +304,18 @@ export function App() {
   );
 }
 
+/** Format a rest duration (ms) as M:SS. */
+function formatRest(ms: number): string {
+  const total = Math.floor(ms / 1000);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
 function statusText(conn: ConnState, phase: Phase, inRange: boolean): string {
   if (conn === "disconnected") return "Connect your Progressor to begin.";
   if (conn === "connecting") return "Connecting…";
   if (phase === "success") return "✅ Success! Release to reset.";
-  if (phase === "holding") return "💪 In range — keep holding!";
   if (inRange) return "In range…";
   return "Pull up to the target weight.";
 }
