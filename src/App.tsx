@@ -9,10 +9,6 @@ import { playFinalBeep, playHoldBeep, unlockAudio } from "./sounds.ts";
 const HOLD_SECONDS = 6;
 const HOLD_MS = HOLD_SECONDS * 1000;
 
-// A drop-out only counts as a failure if the hold lasted at least this long;
-// brief taps above the threshold are ignored.
-const MIN_FAIL_MS = 1000;
-
 type ConnState = "disconnected" | "connecting" | "connected";
 type Phase = "idle" | "waiting" | "holding" | "success";
 
@@ -42,6 +38,7 @@ export function App() {
   const phaseRef = useRef<Phase>("idle");
 
   const deviceRef = useRef<TindeqProgressor | null>(null);
+  const targetInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     targetRef.current = targetKg;
@@ -86,9 +83,8 @@ export function App() {
             holdStartRef.current = null;
             restStartRef.current = performance.now(); // start resting
             setPhaseBoth("waiting");
-            // Beeps just stop — going silent is the out-of-range cue.
-            // Only a hold that survived a full second counts as a failed rep.
-            if (heldMs >= MIN_FAIL_MS) setFailures((n) => n + 1);
+            // Beeps just stop — going silent is the out-of-range cue. Failed
+            // reps aren't auto-counted; the user logs them with the Space key.
           } else if (heldMs >= HOLD_MS) {
             holdStartRef.current = null;
             setPhaseBoth("success");
@@ -138,6 +134,28 @@ export function App() {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
+  }, []);
+
+  // Keep the weight field focused: on first load, and whenever we return to the
+  // detailed view (e.g. force drops back below the threshold after a hold).
+  const detailedView = !(phase === "holding" || phase === "success");
+  useEffect(() => {
+    if (detailedView) targetInputRef.current?.focus();
+  }, [detailedView]);
+
+  // Space logs a failed rep. Failures aren't auto-detected, so a mistimed or
+  // aborted attempt is only recorded when the user presses Space.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Space" || e.key === " ") {
+        e.preventDefault();
+        // Shift+Space corrects an over-count by decrementing (floored at 0).
+        if (e.shiftKey) setFailures((n) => Math.max(0, n - 1));
+        else setFailures((n) => n + 1);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
   const connect = useCallback(async () => {
@@ -236,9 +254,11 @@ export function App() {
         <label>
           Target weight (kg)
           <input
+            ref={targetInputRef}
             type="number"
             min={0}
-            step={0.5}
+            step="any"
+            autoFocus
             value={targetKg}
             onChange={(e) => setTargetKg(Number(e.target.value))}
           />
@@ -299,6 +319,12 @@ export function App() {
             <span className="label">failed</span>
           </div>
         </div>
+
+        <p className="hint">
+          Successful holds are counted automatically. Press{" "}
+          <kbd>Space</kbd> to log a failed rep, <kbd>Shift</kbd>+<kbd>Space</kbd>{" "}
+          to undo one.
+        </p>
       </section>
     </div>
   );

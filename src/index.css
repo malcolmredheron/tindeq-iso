@@ -190,7 +190,9 @@ button.primary:hover:not(:disabled) {
 }
 
 .big-value {
-  font-size: 26vh;
+  /* Cap by width too so 3-digit weights (e.g. "123.4 kg") shrink to fit a
+     narrow window instead of overflowing. */
+  font-size: min(26vh, 22vw);
   font-weight: 800;
   line-height: 0.9;
   font-variant-numeric: tabular-nums;
@@ -198,6 +200,7 @@ button.primary:hover:not(:disabled) {
   align-items: baseline;
   justify-content: center;
   gap: 0.15em;
+  max-width: 100%;
 }
 
 .big-value.force-color {
@@ -249,6 +252,24 @@ button.primary:hover:not(:disabled) {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: #8b93a3;
+}
+
+.hint {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #8b93a3;
+}
+
+kbd {
+  font-family: inherit;
+  font-size: 0.8rem;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: #232733;
+  border: 1px solid #333a48;
+  border-bottom-width: 2px;
+  color: #e8eaed;
 }
 
 .counter.success .count {
