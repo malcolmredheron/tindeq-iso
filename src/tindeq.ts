@@ -18,6 +18,31 @@ const CMD_ENTER_SLEEP = 0x6e;
 // Response kinds on the data point.
 const RSP_WEIGHT_MEASURE = 0x01;
 
+// How long to wait for a silent reconnect to a remembered device before giving
+// up and showing the picker (the device may be off or out of range).
+const GATT_CONNECT_TIMEOUT_MS = 5000;
+
+/** Reject with `message` if `promise` doesn't settle within `ms`. */
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  message: string,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
 /** Thrown when the user closes the device chooser without picking a device. */
 export class UserCancelledError extends Error {
   constructor() {
@@ -63,12 +88,31 @@ export class TindeqProgressor {
       );
     }
 
+    // Fast path: if we've already been granted access to a Progressor in a
+    // previous session, try to reconnect to it silently — no chooser. This only
+    // works if the device is powered on and in range right now; otherwise we
+    // fall through to the picker below.
+    const remembered = await this.findRememberedDevice();
+    if (remembered) {
+      try {
+        await this.setupDevice(remembered);
+        return;
+      } catch (e) {
+        console.warn(
+          "[tindeq] auto-connect to remembered device failed; showing picker",
+          e,
+        );
+        await this.cleanupFailedDevice();
+      }
+    }
+
     // The Progressor advertises by name ("Progressor_XXXX") and does NOT put its
     // 128-bit service UUID in the advertisement packet, so a `services` filter
     // matches nothing. Filter by name prefix and list the service as optional so
     // we're still allowed to access it after connecting.
+    let device: BluetoothDevice;
     try {
-      this.device = await navigator.bluetooth.requestDevice({
+      device = await navigator.bluetooth.requestDevice({
         filters: [{ namePrefix: "Progressor" }],
         optionalServices: [PROGRESSOR_SERVICE_UUID],
       });
@@ -82,10 +126,40 @@ export class TindeqProgressor {
       throw e;
     }
 
-    this.device.addEventListener("gattserverdisconnected", this.handleDisconnect);
+    await this.setupDevice(device);
+  }
+
+  /**
+   * Return a previously-permitted Progressor, if the browser supports
+   * `getDevices()` and one is remembered. Never throws.
+   */
+  private async findRememberedDevice(): Promise<BluetoothDevice | null> {
+    // getDevices() is Chromium-only and may be gated behind
+    // chrome://flags/#enable-web-bluetooth-new-permissions-backend on some
+    // versions, so guard both the method and the call.
+    if (typeof navigator.bluetooth.getDevices !== "function") return null;
+    try {
+      const devices = await navigator.bluetooth.getDevices();
+      return devices.find((d) => d.name?.startsWith("Progressor")) ?? null;
+    } catch (e) {
+      console.warn("[tindeq] getDevices() failed", e);
+      return null;
+    }
+  }
+
+  /** Connect to a device, discover characteristics, and start notifications. */
+  private async setupDevice(device: BluetoothDevice): Promise<void> {
+    this.device = device;
+    device.addEventListener("gattserverdisconnected", this.handleDisconnect);
 
     console.log("[tindeq] connecting to GATT server…");
-    const server = await this.device.gatt!.connect();
+    // A remembered device that's out of range leaves gatt.connect() pending
+    // indefinitely, so bound it and fall back to the picker on timeout.
+    const server = await withTimeout(
+      device.gatt!.connect(),
+      GATT_CONNECT_TIMEOUT_MS,
+      "GATT connect timed out (device out of range?)",
+    );
     console.log("[tindeq] discovering service", PROGRESSOR_SERVICE_UUID);
     const service = await server.getPrimaryService(PROGRESSOR_SERVICE_UUID);
 
@@ -99,6 +173,22 @@ export class TindeqProgressor {
     );
     await this.dataChar.startNotifications();
     console.log("[tindeq] notifications started; ready");
+  }
+
+  /** Tear down a half-open device after a failed auto-connect attempt. */
+  private async cleanupFailedDevice(): Promise<void> {
+    this.device?.removeEventListener(
+      "gattserverdisconnected",
+      this.handleDisconnect,
+    );
+    try {
+      this.device?.gatt?.disconnect();
+    } catch {
+      // ignore — best effort
+    }
+    this.device = null;
+    this.controlChar = null;
+    this.dataChar = null;
   }
 
   private handleDisconnect = () => {
