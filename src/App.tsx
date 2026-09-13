@@ -168,9 +168,24 @@ export function App() {
   // Keep the weight field focused: on first load, and whenever we return to the
   // detailed view (e.g. force drops back below the threshold after a hold).
   const detailedView = !(phase === "holding" || phase === "success");
+  const detailedViewRef = useRef(detailedView);
+  detailedViewRef.current = detailedView;
   useEffect(() => {
     if (detailedView) targetInputRef.current?.focus();
   }, [detailedView]);
+
+  // …and take it back if anything else steals it (clicking a button, or
+  // returning to the tab). Bounced through a frame so the click that moved
+  // focus is delivered to its target first.
+  const refocusTarget = useCallback(() => {
+    requestAnimationFrame(() => {
+      if (detailedViewRef.current) targetInputRef.current?.focus();
+    });
+  }, []);
+  useEffect(() => {
+    window.addEventListener("focus", refocusTarget);
+    return () => window.removeEventListener("focus", refocusTarget);
+  }, [refocusTarget]);
 
   // Space logs a failed rep. Failures aren't auto-detected, so a mistimed or
   // aborted attempt is only recorded when the user presses Space.
@@ -300,6 +315,7 @@ export function App() {
             value={targetText}
             aria-invalid={targetError !== null}
             onChange={(e) => onTargetChange(e.target.value)}
+            onBlur={refocusTarget}
           />
         </label>
 
