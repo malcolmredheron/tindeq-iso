@@ -225,9 +225,17 @@ export class TindeqProgressor {
     await this.controlChar.writeValue(new Uint8Array([opcode]));
   }
 
-  /** Zero the scale. Do this with no load on the device. */
-  tare(): Promise<void> {
-    return this.sendCommand(CMD_TARE_SCALE);
+  /**
+   * Zero the scale. Do this with no load on the device.
+   *
+   * Taring ends the current measurement on the device: the notifications stop
+   * and the displayed weight freezes on the last sample until measurement is
+   * started again (which is why a disconnect/reconnect appeared to "fix" it).
+   * Restart the stream here so the tare is invisible apart from the new zero.
+   */
+  async tare(): Promise<void> {
+    await this.sendCommand(CMD_TARE_SCALE);
+    await this.startMeasurement();
   }
 
   startMeasurement(): Promise<void> {
