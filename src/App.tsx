@@ -268,18 +268,20 @@ export function App() {
   if (connected && (phase === "holding" || phase === "success")) {
     const countdownSec =
       phase === "success" ? 0 : Math.max(0, Math.ceil(remaining / 1000));
-    const excess = force - targetKg;
+    // Round before picking the sign, so a hair under the target reads "+0.0"
+    // rather than "−0.0".
+    const excess = Number((force - targetKg).toFixed(1));
     return (
       <div className={`app phase-${phase} simplified`}>
         <div className="big-readout">
           <div className="big-stack">
             <div className="big-value force-color">
-              {excess >= 0 ? "+" : "−"}
-              {Math.abs(excess).toFixed(1)}
+              {excess < 0 ? "−" : "+"}
+              {kg1(Math.abs(excess))}
               <span className="big-unit">kg</span>
             </div>
             <div className="big-subvalue">
-              {force.toFixed(1)}
+              {kg1(force)}
               <span className="sub-unit">kg total</span>
             </div>
           </div>
@@ -344,7 +346,7 @@ export function App() {
 
       <section className="readout">
         <div className="force">
-          <span className="value">{force.toFixed(1)}</span>
+          <span className="value">{kg1(force)}</span>
           <span className="unit">kg</span>
         </div>
 
@@ -385,6 +387,16 @@ export function App() {
       </section>
     </div>
   );
+}
+
+/**
+ * Format a weight to one decimal. A tiny negative reading — sensor noise around
+ * zero, or an over-generous tare — would otherwise render as "-0.0"; collapse
+ * that to "0.0".
+ */
+function kg1(kg: number): string {
+  const rounded = Number(kg.toFixed(1));
+  return (rounded === 0 ? 0 : rounded).toFixed(1);
 }
 
 /** Format a rest duration (ms) as M:SS. */
