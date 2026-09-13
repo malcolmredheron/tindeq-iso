@@ -55,6 +55,11 @@ input[type="number"] {
   color: #e8eaed;
 }
 
+input[type="number"][aria-invalid="true"] {
+  border-color: #6b2b2b;
+  background: #241a1a;
+}
+
 button {
   padding: 11px 18px;
   font-size: 1rem;

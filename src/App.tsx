@@ -8,6 +8,10 @@ import { playFinalBeep, playHoldBeep, unlockAudio } from "./sounds.ts";
 
 const HOLD_SECONDS = 6;
 const HOLD_MS = HOLD_SECONDS * 1000;
+// A mistyped target this low is exceeded by almost any resting load, which
+// would drop the app straight into the hold view where the field is hidden and
+// the target can no longer be corrected.
+const MIN_TARGET_KG = 1;
 
 type ConnState = "disconnected" | "connecting" | "connected";
 type Phase = "idle" | "waiting" | "holding" | "success";
@@ -15,7 +19,12 @@ type Phase = "idle" | "waiting" | "holding" | "success";
 export function App() {
   const [connState, setConnState] = useState<ConnState>("disconnected");
   const [error, setError] = useState<string | null>(null);
+  // The committed target, plus the raw field text. The two diverge while the
+  // field holds a rejected value (empty or below MIN_TARGET_KG): the previous
+  // target stays in force so a typo can't strand the app in the hold view.
   const [targetKg, setTargetKg] = useState(20);
+  const [targetText, setTargetText] = useState("20");
+  const [targetError, setTargetError] = useState<string | null>(null);
 
   // Live values are rendered from a requestAnimationFrame loop reading refs, so
   // the incoming stream of samples never floods React with state updates.
@@ -46,6 +55,26 @@ export function App() {
     setSuccesses(0);
     setFailures(0);
   }, [targetKg]);
+
+  const onTargetChange = useCallback(
+    (raw: string) => {
+      setTargetText(raw);
+      const value = Number(raw);
+      if (
+        raw.trim() === "" ||
+        !Number.isFinite(value) ||
+        value < MIN_TARGET_KG
+      ) {
+        setTargetError(
+          `Target weight must be at least ${MIN_TARGET_KG} kg — still using ${targetKg} kg.`,
+        );
+        return;
+      }
+      setTargetError(null);
+      setTargetKg(value);
+    },
+    [targetKg],
+  );
 
   const setPhaseBoth = useCallback((p: Phase) => {
     phaseRef.current = p;
@@ -265,11 +294,12 @@ export function App() {
           <input
             ref={targetInputRef}
             type="number"
-            min={0}
+            min={MIN_TARGET_KG}
             step="any"
             autoFocus
-            value={targetKg}
-            onChange={(e) => setTargetKg(Number(e.target.value))}
+            value={targetText}
+            aria-invalid={targetError !== null}
+            onChange={(e) => onTargetChange(e.target.value)}
           />
         </label>
 
@@ -291,6 +321,8 @@ export function App() {
           <button onClick={tare}>Tare (zero)</button>
         </section>
       )}
+
+      {targetError && <p className="warn">{targetError}</p>}
 
       {error && <p className="warn">{error}</p>}
 
