@@ -207,6 +207,34 @@ button.primary:hover:not(:disabled) {
   color: #57e08a;
 }
 
+/* The overshoot reading plus the total weight beneath it, as one block. */
+.big-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1vh;
+  max-width: 100%;
+}
+
+.big-subvalue {
+  font-size: 7vh;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: #8b93a3;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.2em;
+}
+
+.sub-unit {
+  font-size: 0.45em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
 .big-unit {
   font-size: 8vh;
   font-weight: 600;

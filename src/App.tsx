@@ -219,16 +219,25 @@ export function App() {
   const inRange = force >= targetKg;
 
   // While above the threshold (an active hold), show the distraction-free view:
-  // just the force and the integer countdown, both large.
+  // just the overshoot above target and the integer countdown, both large. The
+  // total weight stays visible underneath in a smaller font.
   if (connected && (phase === "holding" || phase === "success")) {
     const countdownSec =
       phase === "success" ? 0 : Math.max(0, Math.ceil(remaining / 1000));
+    const excess = force - targetKg;
     return (
       <div className={`app phase-${phase} simplified`}>
         <div className="big-readout">
-          <div className="big-value force-color">
-            {force.toFixed(1)}
-            <span className="big-unit">kg</span>
+          <div className="big-stack">
+            <div className="big-value force-color">
+              {excess >= 0 ? "+" : "−"}
+              {Math.abs(excess).toFixed(1)}
+              <span className="big-unit">kg</span>
+            </div>
+            <div className="big-subvalue">
+              {force.toFixed(1)}
+              <span className="sub-unit">kg total</span>
+            </div>
           </div>
           <div className="big-value">
             {countdownSec}
