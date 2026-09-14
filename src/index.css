@@ -28,31 +28,29 @@ h1 {
   text-align: center;
 }
 
-.controls {
-  display: flex;
-  gap: 12px;
-  align-items: flex-end;
-  justify-content: center;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
-}
-
-label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 0.85rem;
-  color: #aab2c0;
-}
-
 input[type="number"] {
-  width: 120px;
-  padding: 10px 12px;
-  font-size: 1.1rem;
-  border-radius: 10px;
+  /* Sized to read as the tile's value, like the numbers in the tiles beside
+     it, rather than as a form field that wandered into the row. */
+  width: 100%;
+  padding: 2px 4px;
+  font-size: 2.2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: center;
+  border-radius: 8px;
   border: 1px solid #333a48;
-  background: #1b1e26;
+  background: #12141a;
   color: #e8eaed;
+  /* No spinner buttons: they crowd a tile this narrow, and the field holds
+     focus anyway, so the arrow keys already step the value. */
+  appearance: textfield;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
 }
 
 input[type="number"][aria-invalid="true"] {
@@ -109,30 +107,56 @@ button.primary:hover:not(:disabled) {
   text-align: center;
 }
 
-.force {
+/* Two matching rows of tiles: the weights, then the rep counters. Each tile is
+   a value over a label, so the rows line up column for column. */
+.tiles {
   display: flex;
-  align-items: baseline;
+  gap: 16px;
   justify-content: center;
-  gap: 8px;
+  margin-top: 24px;
 }
 
-.force .value {
-  font-size: 4rem;
+.tile {
+  flex: 1;
+  max-width: 160px;
+  padding: 14px 10px;
+  border-radius: 12px;
+  background: #1b1e26;
+  border: 1px solid #2a2f3a;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.tile .value {
+  font-size: 2.4rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
 
-.force .unit {
-  font-size: 1.4rem;
+/* A word in the value slot needs to be smaller than a number to sit there
+   without dominating the row. */
+.tile .value.word {
+  font-size: 1.7rem;
+}
+
+.tile .label {
+  font-size: 0.8rem;
   color: #8b93a3;
 }
 
-/* Stands where the weight reading goes while disconnected, so size it to hold
-   that slot rather than look like the small controls above it. */
-button.connect {
-  font-size: 1.25rem;
-  padding: 16px 28px;
+button.tile:hover:not(:disabled) {
+  background: #232733;
+}
+
+/* Stands in for both the reading and the tare button while disconnected, so it
+   spans their two slots. */
+.tile.connect {
+  max-width: 336px;
+  font-size: 1.15rem;
 }
 
 /* Simplified, distraction-free view shown during an active hold. */
@@ -215,38 +239,6 @@ button.connect {
   min-height: 1.4em;
 }
 
-.counters {
-  display: flex;
-  gap: 16px;
-  justify-content: center;
-  margin-top: 24px;
-}
-
-.counter {
-  flex: 1;
-  max-width: 160px;
-  padding: 14px 10px;
-  border-radius: 12px;
-  background: #1b1e26;
-  border: 1px solid #2a2f3a;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.counter .count {
-  font-size: 2.4rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-
-.counter .label {
-  font-size: 0.8rem;
-  color: #8b93a3;
-}
-
 .hint {
   margin-top: 16px;
   text-align: center;
@@ -265,15 +257,15 @@ kbd {
   color: #e8eaed;
 }
 
-.counter.success .count {
+.tile.success .value {
   color: #57e08a;
 }
 
-.counter.fail .count {
+.tile.fail .value {
   color: #ff7a7a;
 }
 
-.counter.rest .count {
+.tile.rest .value {
   color: #7fb0ff;
 }
 

@@ -315,64 +315,68 @@ export function App() {
         </p>
       )}
 
-      <section className="controls">
-        <label>
-          Target weight (kg)
-          <input
-            ref={targetInputRef}
-            type="number"
-            min={MIN_TARGET_KG}
-            step="any"
-            autoFocus
-            value={targetText}
-            aria-invalid={targetError !== null}
-            onChange={(e) => onTargetChange(e.target.value)}
-            onBlur={refocusTarget}
-          />
-        </label>
-
-        {connected && <button onClick={tare}>Tare (zero)</button>}
-      </section>
-
       {targetError && <p className="warn">{targetError}</p>}
 
       {error && <p className="warn">{error}</p>}
 
       <section className="readout">
-        {/* There is no weight to read until the device is talking to us, so
-            the connect button takes that slot rather than sitting beside the
-            target field competing for attention. */}
-        {connected ? (
-          <div className="force">
-            <span className="value">{kg1(force)}</span>
-            <span className="unit">kg</span>
-          </div>
-        ) : (
-          <button
-            className="primary connect"
-            onClick={connect}
-            disabled={connState === "connecting"}
-          >
-            {connState === "connecting" ? "Connecting…" : "Connect Progressor"}
-          </button>
-        )}
+        {/* The weights, as one row of tiles matching the counters below. */}
+        <div className="tiles">
+          <label className="tile">
+            <input
+              ref={targetInputRef}
+              type="number"
+              min={MIN_TARGET_KG}
+              step="any"
+              autoFocus
+              value={targetText}
+              aria-invalid={targetError !== null}
+              onChange={(e) => onTargetChange(e.target.value)}
+              onBlur={refocusTarget}
+            />
+            <span className="label">target (kg)</span>
+          </label>
+
+          {/* Until the device is talking to us there is no weight to read and
+              nothing to zero, so connecting takes both of those slots. */}
+          {connected ? (
+            <>
+              <div className="tile">
+                <span className="value">{kg1(force)}</span>
+                <span className="label">measured (kg)</span>
+              </div>
+              <button className="tile" onClick={tare}>
+                <span className="value word">tare</span>
+                <span className="label">reset to zero</span>
+              </button>
+            </>
+          ) : (
+            <button
+              className="tile connect primary"
+              onClick={connect}
+              disabled={connState === "connecting"}
+            >
+              {connState === "connecting" ? "Connecting…" : "Connect Progressor"}
+            </button>
+          )}
+        </div>
 
         <p className="status">{statusText(connState, phase, inRange)}</p>
 
-        <div className="counters">
-          <div className="counter success">
-            <span className="count">{successes}</span>
+        <div className="tiles">
+          <div className="tile success">
+            <span className="value">{successes}</span>
             <span className="label">succeeded</span>
           </div>
-          <div className="counter fail">
-            <span className="count">{failures}</span>
+          <div className="tile fail">
+            <span className="value">{failures}</span>
             <span className="label">failed</span>
           </div>
           {/* Below the threshold: count up to track rest between reps. Whole
               seconds only — a M:SS clock reads as more precision than a rest
               gap needs, and the sibling counters are bare numbers. */}
-          <div className="counter rest">
-            <span className="count">{Math.floor(restMs / 1000)}</span>
+          <div className="tile rest">
+            <span className="value">{Math.floor(restMs / 1000)}</span>
             <span className="label">rest (s)</span>
           </div>
         </div>
