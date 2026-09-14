@@ -329,3 +329,20 @@ kbd {
 .app.phase-success .status {
   color: #57e08a;
 }
+
+/* Source link, pinned to the viewport corner so it never shifts the layout. */
+.repo-link {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  padding: 6px;
+  border-radius: 8px;
+  color: #8b93a3;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.repo-link:hover {
+  color: #e8eaed;
+  background: #232733;
+}
