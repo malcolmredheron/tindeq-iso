@@ -374,8 +374,6 @@ export function App() {
           )}
         </div>
 
-        <p className="status">{statusText(connState, phase, inRange)}</p>
-
         <div className="tiles">
           <div className="tile success">
             <span className="value">{successes}</span>
@@ -424,12 +422,4 @@ function GitHubMark() {
 function kg1(kg: number): string {
   const rounded = Number(kg.toFixed(1));
   return (rounded === 0 ? 0 : rounded).toFixed(1);
-}
-
-function statusText(conn: ConnState, phase: Phase, inRange: boolean): string {
-  if (conn === "disconnected") return "Connect your Progressor to begin.";
-  if (conn === "connecting") return "Connecting…";
-  if (phase === "success") return "✅ Success! Release to reset.";
-  if (inRange) return "In range…";
-  return "Pull up to the target weight.";
 }

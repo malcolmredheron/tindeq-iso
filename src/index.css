@@ -232,13 +232,6 @@ button.tile:hover:not(:disabled) {
   color: #8b93a3;
 }
 
-.status {
-  margin-top: 14px;
-  font-size: 1.05rem;
-  color: #aab2c0;
-  min-height: 1.4em;
-}
-
 .hint {
   margin-top: 16px;
   text-align: center;
@@ -276,10 +269,6 @@ kbd {
 
 .app.phase-success {
   background: radial-gradient(120% 80% at 50% 0%, #123a55 0%, #12141a 60%);
-}
-
-.app.phase-success .status {
-  color: #57e08a;
 }
 
 /* Source link, pinned to the viewport corner so it never shifts the layout. */
