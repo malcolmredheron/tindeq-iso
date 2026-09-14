@@ -39,8 +39,9 @@ export function App() {
   // Mutable state read inside the BLE sample handler (which is registered once).
   const targetRef = useRef(targetKg);
   const holdStartRef = useRef<number | null>(null);
-  // When below the threshold, timestamp of when the rest period started (used
-  // for the count-up rest timer). Non-null only while phase is "waiting".
+  // Timestamp of when the current rest period started, or null while a rep is
+  // under way. Set when the detailed screen comes back; cleared when a rep
+  // starts.
   const restStartRef = useRef<number | null>(null);
   // Index of the next per-second progress beep (0..5) to play in this hold.
   const nextBeepRef = useRef(0);
@@ -111,7 +112,6 @@ export function App() {
               : performance.now() - holdStartRef.current;
           if (f < target) {
             holdStartRef.current = null;
-            restStartRef.current = performance.now(); // start resting
             setPhaseBoth("waiting");
             // Beeps just stop — going silent is the out-of-range cue. Failed
             // reps aren't auto-counted; the user logs them with the Space key.
@@ -126,10 +126,7 @@ export function App() {
         case "success":
           // Hold completed. Wait for a release below target before arming the
           // next rep, so a sustained pull doesn't immediately re-trigger.
-          if (f < target) {
-            restStartRef.current = performance.now(); // start resting
-            setPhaseBoth("waiting");
-          }
+          if (f < target) setPhaseBoth("waiting");
           break;
       }
     },
@@ -205,6 +202,13 @@ export function App() {
     return () => window.removeEventListener("focus", refocusTarget);
   }, [refocusTarget]);
 
+  // Rest is the gap between pulls, so it starts when the user lets go of the
+  // device and this screen comes back — not when the force dips under the
+  // target, which also happens mid-rep while they're still hanging on.
+  useEffect(() => {
+    if (connected && detailedView) restStartRef.current = performance.now();
+  }, [connected, detailedView]);
+
   // Space logs a failed rep. Failures aren't auto-detected, so a mistimed or
   // aborted attempt is only recorded when the user presses Space.
   useEffect(() => {
@@ -243,8 +247,7 @@ export function App() {
       await dev.startMeasurement();
       setConnState("connected");
       holdStartRef.current = null;
-      restStartRef.current = performance.now(); // start resting before first rep
-      setRestMs(0);
+      setRestMs(0); // the effect above starts the clock for the first rep
       setPhaseBoth("waiting");
     } catch (e) {
       setConnState("disconnected");
