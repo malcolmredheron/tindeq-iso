@@ -174,23 +174,32 @@ export function App() {
   // still short of the target is what tells them how much harder to pull.
   const simplified = connected && force > MIN_TARGET_KG;
 
+  // Focus the weight field with its contents selected, so the next digit typed
+  // replaces the old target instead of being appended to it.
+  const selectTarget = useCallback(() => {
+    const input = targetInputRef.current;
+    if (!input) return;
+    input.focus();
+    input.select();
+  }, []);
+
   // Keep the weight field focused: on first load, and whenever we return to the
   // detailed view (e.g. force drops back below the threshold after a hold).
   const detailedView = !simplified;
   const detailedViewRef = useRef(detailedView);
   detailedViewRef.current = detailedView;
   useEffect(() => {
-    if (detailedView) targetInputRef.current?.focus();
-  }, [detailedView]);
+    if (detailedView) selectTarget();
+  }, [detailedView, selectTarget]);
 
   // …and take it back if anything else steals it (clicking a button, or
   // returning to the tab). Bounced through a frame so the click that moved
   // focus is delivered to its target first.
   const refocusTarget = useCallback(() => {
     requestAnimationFrame(() => {
-      if (detailedViewRef.current) targetInputRef.current?.focus();
+      if (detailedViewRef.current) selectTarget();
     });
-  }, []);
+  }, [selectTarget]);
   useEffect(() => {
     window.addEventListener("focus", refocusTarget);
     return () => window.removeEventListener("focus", refocusTarget);
@@ -205,11 +214,15 @@ export function App() {
         // Shift+Space corrects an over-count by decrementing (floored at 0).
         if (e.shiftKey) setFailures((n) => Math.max(0, n - 1));
         else setFailures((n) => n + 1);
+      } else if (e.key === "Enter") {
+        // Nothing to submit — Enter just re-arms the field for a new target.
+        e.preventDefault();
+        selectTarget();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [selectTarget]);
 
   const connect = useCallback(async () => {
     setError(null);
