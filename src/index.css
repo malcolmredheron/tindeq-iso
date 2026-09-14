@@ -123,8 +123,7 @@ button.primary:hover:not(:disabled) {
   line-height: 1;
 }
 
-.force .unit,
-.timer .unit {
+.force .unit {
   font-size: 1.4rem;
   color: #8b93a3;
 }
@@ -155,27 +154,6 @@ button.primary:hover:not(:disabled) {
   bottom: 0;
   width: 3px;
   background: #ffd24a;
-}
-
-.timer {
-  font-size: 3.2rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  margin-top: 8px;
-}
-
-.timer.rest {
-  color: #7fb0ff;
-}
-
-.timer-caption {
-  display: block;
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #8b93a3;
-  margin-top: 2px;
 }
 
 /* Simplified, distraction-free view shown during an active hold. */
@@ -313,13 +291,13 @@ kbd {
   color: #ff7a7a;
 }
 
+.counter.rest .count {
+  color: #7fb0ff;
+}
+
 /* Phase-driven background accents. */
 .app.phase-holding {
   background: radial-gradient(120% 80% at 50% 0%, #14331f 0%, #12141a 60%);
-}
-
-.app.phase-holding .timer {
-  color: #57e08a;
 }
 
 .app.phase-success {

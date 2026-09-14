@@ -372,12 +372,6 @@ export function App() {
           <div className="threshold" />
         </div>
 
-        {/* Below the threshold: count up to track rest between reps. */}
-        <div className="timer rest">
-          {formatRest(restMs)}
-          <span className="timer-caption">rest</span>
-        </div>
-
         <p className="status">{statusText(connState, phase, inRange)}</p>
 
         <div className="counters">
@@ -388,6 +382,13 @@ export function App() {
           <div className="counter fail">
             <span className="count">{failures}</span>
             <span className="label">failed</span>
+          </div>
+          {/* Below the threshold: count up to track rest between reps. Whole
+              seconds only — a M:SS clock reads as more precision than a rest
+              gap needs, and the sibling counters are bare numbers. */}
+          <div className="counter rest">
+            <span className="count">{Math.floor(restMs / 1000)}</span>
+            <span className="label">rest (s)</span>
           </div>
         </div>
 
@@ -421,14 +422,6 @@ function GitHubMark() {
 function kg1(kg: number): string {
   const rounded = Number(kg.toFixed(1));
   return (rounded === 0 ? 0 : rounded).toFixed(1);
-}
-
-/** Format a rest duration (ms) as M:SS. */
-function formatRest(ms: number): string {
-  const total = Math.floor(ms / 1000);
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 function statusText(conn: ConnState, phase: Phase, inRange: boolean): string {
