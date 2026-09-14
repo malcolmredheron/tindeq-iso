@@ -8,10 +8,11 @@ import { playFinalBeep, playHoldBeep, unlockAudio } from "./sounds.ts";
 
 const HOLD_SECONDS = 6;
 const HOLD_MS = HOLD_SECONDS * 1000;
-// A mistyped target this low is exceeded by almost any resting load, which
-// would drop the app straight into the hold view where the field is hidden and
-// the target can no longer be corrected.
-const MIN_TARGET_KG = 1;
+// The load that counts as "the user is pulling". Doubles as the floor for the
+// target weight: a mistyped target this low is exceeded by almost any resting
+// load, which would drop the app straight into the hold view where the field is
+// hidden and the target can no longer be corrected.
+const MIN_TARGET_KG = 2;
 
 type ConnState = "disconnected" | "connecting" | "connected";
 type Phase = "idle" | "waiting" | "holding" | "success";
@@ -165,9 +166,17 @@ export function App() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
+  const connected = connState === "connected";
+  const inRange = force >= targetKg;
+  // The distraction-free view takes over as soon as there is real load on the
+  // device, not just during a qualifying hold: once the user is pulling they
+  // can't read the detailed layout anyway, and seeing the big number while
+  // still short of the target is what tells them how much harder to pull.
+  const simplified = connected && force > MIN_TARGET_KG;
+
   // Keep the weight field focused: on first load, and whenever we return to the
   // detailed view (e.g. force drops back below the threshold after a hold).
-  const detailedView = !(phase === "holding" || phase === "success");
+  const detailedView = !simplified;
   const detailedViewRef = useRef(detailedView);
   detailedViewRef.current = detailedView;
   useEffect(() => {
@@ -236,15 +245,6 @@ export function App() {
     }
   }, [handleSample, setPhaseBoth]);
 
-  const disconnect = useCallback(async () => {
-    holdStartRef.current = null;
-    restStartRef.current = null;
-    setPhaseBoth("idle");
-    await deviceRef.current?.disconnect();
-    deviceRef.current = null;
-    setConnState("disconnected");
-  }, [setPhaseBoth]);
-
   const tare = useCallback(async () => {
     try {
       await deviceRef.current?.tare();
@@ -259,13 +259,11 @@ export function App() {
     };
   }, []);
 
-  const connected = connState === "connected";
-  const inRange = force >= targetKg;
-
-  // While above the threshold (an active hold), show the distraction-free view:
-  // just the overshoot above target and the integer countdown, both large. The
-  // total weight stays visible underneath in a smaller font.
-  if (connected && (phase === "holding" || phase === "success")) {
+  // While pulling, show the distraction-free view: just the difference from the
+  // target and the integer countdown, both large. The total weight stays
+  // visible underneath in a smaller font. The difference is coloured by whether
+  // the target is actually met, so a short pull reads as short at a glance.
+  if (simplified) {
     const countdownSec =
       phase === "success" ? 0 : Math.max(0, Math.ceil(remaining / 1000));
     // Round before picking the sign, so a hair under the target reads "+0.0"
@@ -275,7 +273,7 @@ export function App() {
       <div className={`app phase-${phase} simplified`}>
         <div className="big-readout">
           <div className="big-stack">
-            <div className="big-value force-color">
+            <div className={`big-value ${inRange ? "force-good" : "force-bad"}`}>
               {excess < 0 ? "−" : "+"}
               {kg1(Math.abs(excess))}
               <span className="big-unit">kg</span>
@@ -333,44 +331,31 @@ export function App() {
           />
         </label>
 
-        {!connected ? (
-          <button
-            className="primary"
-            onClick={connect}
-            disabled={connState === "connecting"}
-          >
-            {connState === "connecting" ? "Connecting…" : "Connect Progressor"}
-          </button>
-        ) : (
-          <button onClick={disconnect}>Disconnect</button>
-        )}
+        {connected && <button onClick={tare}>Tare (zero)</button>}
       </section>
-
-      {connected && (
-        <section className="controls">
-          <button onClick={tare}>Tare (zero)</button>
-        </section>
-      )}
 
       {targetError && <p className="warn">{targetError}</p>}
 
       {error && <p className="warn">{error}</p>}
 
       <section className="readout">
-        <div className="force">
-          <span className="value">{kg1(force)}</span>
-          <span className="unit">kg</span>
-        </div>
-
-        <div className="target-bar">
-          <div
-            className="fill"
-            style={{
-              width: `${Math.min(100, targetKg > 0 ? (force / targetKg) * 100 : 0)}%`,
-            }}
-          />
-          <div className="threshold" />
-        </div>
+        {/* There is no weight to read until the device is talking to us, so
+            the connect button takes that slot rather than sitting beside the
+            target field competing for attention. */}
+        {connected ? (
+          <div className="force">
+            <span className="value">{kg1(force)}</span>
+            <span className="unit">kg</span>
+          </div>
+        ) : (
+          <button
+            className="primary connect"
+            onClick={connect}
+            disabled={connState === "connecting"}
+          >
+            {connState === "connecting" ? "Connecting…" : "Connect Progressor"}
+          </button>
+        )}
 
         <p className="status">{statusText(connState, phase, inRange)}</p>
 

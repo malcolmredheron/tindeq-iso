@@ -128,32 +128,11 @@ button.primary:hover:not(:disabled) {
   color: #8b93a3;
 }
 
-.target-bar {
-  position: relative;
-  height: 16px;
-  background: #1b1e26;
-  border-radius: 8px;
-  margin: 20px 0;
-  overflow: hidden;
-  border: 1px solid #2a2f3a;
-}
-
-.target-bar .fill {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  background: linear-gradient(90deg, #2f6df6, #4079ff);
-  transition: width 0.05s linear;
-}
-
-.target-bar .threshold {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: #ffd24a;
+/* Stands where the weight reading goes while disconnected, so size it to hold
+   that slot rather than look like the small controls above it. */
+button.connect {
+  font-size: 1.25rem;
+  padding: 16px 28px;
 }
 
 /* Simplified, distraction-free view shown during an active hold. */
@@ -186,8 +165,13 @@ button.primary:hover:not(:disabled) {
   max-width: 100%;
 }
 
-.big-value.force-color {
+/* The difference from target, coloured by whether the target is being met. */
+.big-value.force-good {
   color: #57e08a;
+}
+
+.big-value.force-bad {
+  color: #ff7a7a;
 }
 
 /* The overshoot reading plus the total weight beneath it, as one block. */
