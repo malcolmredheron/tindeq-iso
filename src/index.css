@@ -195,11 +195,11 @@ button.connect {
   gap: 0.2em;
 }
 
+/* Lowercase, like every other unit on screen — "KG TOTAL" next to a lowercase
+   "kg" in the line above read as two different labels. */
 .sub-unit {
   font-size: 0.45em;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
 }
 
 .big-unit {
@@ -244,8 +244,6 @@ button.connect {
 
 .counter .label {
   font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   color: #8b93a3;
 }
 
