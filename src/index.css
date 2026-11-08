@@ -110,6 +110,11 @@ button.primary:hover:not(:disabled) {
   text-align: center;
 }
 
+/* Three tiles to a row when each side has its own column. */
+.readout.alternating {
+  max-width: 512px;
+}
+
 /* Two matching rows of tiles: the weights, then the rep counters. Each tile is
    a value over a label, so the rows line up column for column. */
 .tiles {
@@ -143,6 +148,16 @@ button.primary:hover:not(:disabled) {
 .tile .label {
   font-size: 0.8rem;
   color: #8b93a3;
+}
+
+/* The side whose turn it is, when alternating. */
+.tile.active {
+  border-color: #2f6df6;
+  background: #1c2436;
+}
+
+.readout.alternating .tile.reps {
+  cursor: pointer;
 }
 
 button.tile:hover:not(:disabled) {
@@ -193,6 +208,14 @@ button.tile:hover:not(:disabled) {
   color: #ff7a7a;
 }
 
+/* Which side to pull with, when alternating. */
+.big-side {
+  font-size: 12vh;
+  font-weight: 800;
+  line-height: 1;
+  color: #7fb0ff;
+}
+
 /* The overshoot reading plus the total weight beneath it, as one block. */
 .big-stack {
   display: flex;
@@ -229,7 +252,7 @@ button.tile:hover:not(:disabled) {
 
 .hint {
   margin: 16px 0 0;
-  text-align: center;
+  text-align: left;
   font-size: 0.85rem;
   color: #8b93a3;
 }
@@ -237,6 +260,16 @@ button.tile:hover:not(:disabled) {
 /* Consecutive hints read as one block of help, not separate sections. */
 .hint + .hint {
   margin-top: 6px;
+}
+
+/* Heads the grid, so it needs no gap of its own above. */
+.hint.mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 0;
+  cursor: pointer;
+  user-select: none;
 }
 
 kbd {

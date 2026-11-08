@@ -19,15 +19,51 @@ const MIN_TARGET_KG = 2;
 type ConnState = "disconnected" | "connecting" | "connected";
 type Phase = "idle" | "waiting" | "holding" | "success";
 
+// 0 is the left side, 1 the right. With alternation off only side 0 is used.
+type Side = 0 | 1;
+const SIDE_NAMES = ["left", "right"] as const;
+const SIDE_LETTERS = ["L", "R"] as const;
+
+// Each side of the body has its own target and its own set. The committed
+// target and the raw field text diverge while the field holds a rejected value
+// (empty or below MIN_TARGET_KG): the previous target stays in force so a typo
+// can't strand the app in the hold view.
+interface SideState {
+  targetKg: number;
+  targetText: string;
+  successes: number;
+  failures: number;
+}
+
+function freshSide(targetKg: number): SideState {
+  return { targetKg, targetText: String(targetKg), successes: 0, failures: 0 };
+}
+
+function updateSide(
+  sides: readonly [SideState, SideState],
+  side: Side,
+  f: (s: SideState) => SideState,
+): [SideState, SideState] {
+  return side === 0 ? [f(sides[0]), sides[1]] : [sides[0], f(sides[1])];
+}
+
+function isValidTarget(raw: string): boolean {
+  const value = Number(raw);
+  return raw.trim() !== "" && Number.isFinite(value) && value >= MIN_TARGET_KG;
+}
+
 export function App() {
   const [connState, setConnState] = useState<ConnState>("disconnected");
   const [error, setError] = useState<string | null>(null);
-  // The committed target, plus the raw field text. The two diverge while the
-  // field holds a rejected value (empty or below MIN_TARGET_KG): the previous
-  // target stays in force so a typo can't strand the app in the hold view.
-  const [targetKg, setTargetKg] = useState(20);
-  const [targetText, setTargetText] = useState("20");
-  const [targetError, setTargetError] = useState<string | null>(null);
+  const [sides, setSides] = useState<[SideState, SideState]>(() => [
+    freshSide(20),
+    freshSide(20),
+  ]);
+  // Whether the user is training one side at a time, alternating between them.
+  const [alternating, setAlternating] = useState(false);
+  // The side whose target is in force and whose counter the next rep goes to.
+  const [active, setActive] = useState<Side>(0);
+  const targetKg = sides[active].targetKg;
 
   // Live values are rendered from a requestAnimationFrame loop reading refs, so
   // the incoming stream of samples never floods React with state updates.
@@ -35,8 +71,6 @@ export function App() {
   const [remaining, setRemaining] = useState(HOLD_MS);
   const [restMs, setRestMs] = useState(0);
   const [phase, setPhase] = useState<Phase>("idle");
-  const [successes, setSuccesses] = useState(0);
-  const [failures, setFailures] = useState(0);
 
   // Mutable state read inside the BLE sample handler (which is registered once).
   const targetRef = useRef(targetKg);
@@ -49,35 +83,69 @@ export function App() {
   const nextBeepRef = useRef(0);
   const forceRef = useRef(0);
   const phaseRef = useRef<Phase>("idle");
+  const activeRef = useRef<Side>(0);
+  // The side whose target field holds focus. Independent of the active side:
+  // clicking a field lets the user edit either side's target without changing
+  // whose turn it is.
+  const focusedSideRef = useRef<Side>(0);
+  const alternatingRef = useRef(false);
+  // Set when a hold succeeds; the side then switches once the user lets go and
+  // the detailed screen returns. Switching at the moment of success would swap
+  // the target under the big readout while they're still pulling.
+  const pendingSwitchRef = useRef(false);
+  // The sides that failures were logged against, most recent last, so that
+  // Shift+Space can take a failure back off the side it was logged on.
+  const failureLogRef = useRef<Side[]>([]);
 
   const deviceRef = useRef<TindeqProgressor | null>(null);
-  const targetInputRef = useRef<HTMLInputElement | null>(null);
+  const targetInputRefs = useRef<(HTMLInputElement | null)[]>([null, null]);
 
   useEffect(() => {
     targetRef.current = targetKg;
-    // Changing the target weight starts a fresh set — reset the counters.
-    setSuccesses(0);
-    setFailures(0);
   }, [targetKg]);
 
+  const selectSide = useCallback((side: Side) => {
+    activeRef.current = side;
+    setActive(side);
+  }, []);
+
   const onTargetChange = useCallback(
-    (raw: string) => {
-      setTargetText(raw);
-      const value = Number(raw);
-      if (
-        raw.trim() === "" ||
-        !Number.isFinite(value) ||
-        value < MIN_TARGET_KG
-      ) {
-        setTargetError(
-          `Target weight must be at least ${MIN_TARGET_KG} kg — still using ${targetKg} kg.`,
+    (side: Side, raw: string) => {
+      if (!isValidTarget(raw) || Number(raw) === sides[side].targetKg) {
+        setSides((prev) =>
+          updateSide(prev, side, (s) => ({ ...s, targetText: raw })),
         );
         return;
       }
-      setTargetError(null);
-      setTargetKg(value);
+      // Changing the target weight starts a fresh set — reset the counters.
+      failureLogRef.current = failureLogRef.current.filter((s) => s !== side);
+      setSides((prev) =>
+        updateSide(prev, side, () => ({
+          ...freshSide(Number(raw)),
+          targetText: raw,
+        })),
+      );
     },
-    [targetKg],
+    [sides],
+  );
+
+  // Switching modes starts a fresh set on both sides, each from the target
+  // that was in use.
+  const setAlternatingMode = useCallback(
+    (on: boolean) => {
+      alternatingRef.current = on;
+      setAlternating(on);
+      pendingSwitchRef.current = false;
+      failureLogRef.current = [];
+      selectSide(0);
+      // The right field goes away when alternation is switched off.
+      focusedSideRef.current = 0;
+      setSides(([left]) => [
+        freshSide(left.targetKg),
+        freshSide(left.targetKg),
+      ]);
+    },
+    [selectSide],
   );
 
   const setPhaseBoth = useCallback((p: Phase) => {
@@ -121,7 +189,13 @@ export function App() {
             holdStartRef.current = null;
             setPhaseBoth("success");
             playFinalBeep(); // the emphatic 7th beep
-            setSuccesses((n) => n + 1);
+            setSides((prev) =>
+              updateSide(prev, activeRef.current, (s) => ({
+                ...s,
+                successes: s.successes + 1,
+              })),
+            );
+            pendingSwitchRef.current = true;
           }
           break;
         }
@@ -173,23 +247,31 @@ export function App() {
   // still short of the target is what tells them how much harder to pull.
   const simplified = connected && force > MIN_TARGET_KG;
 
-  // Focus the weight field with its contents selected, so the next digit typed
-  // replaces the old target instead of being appended to it.
+  // Focus the last-focused weight field with its contents selected, so the
+  // next digit typed replaces the old target instead of being appended to it.
   const selectTarget = useCallback(() => {
-    const input = targetInputRef.current;
+    const input = targetInputRefs.current[focusedSideRef.current];
     if (!input) return;
     input.focus();
     input.select();
   }, []);
 
-  // Keep the weight field focused: on first load, and whenever we return to the
-  // detailed view (e.g. force drops back below the threshold after a hold).
+  // Keep the weight field focused: on first load, whenever we return to the
+  // detailed view (e.g. force drops back below the threshold after a hold), and
+  // when switching modes adds or removes the right side's field.
   const detailedView = !simplified;
   const detailedViewRef = useRef(detailedView);
   detailedViewRef.current = detailedView;
   useEffect(() => {
     if (detailedView) selectTarget();
-  }, [detailedView, selectTarget]);
+  }, [detailedView, alternating, selectTarget]);
+
+  // A successful hold hands over to the other side once the user lets go.
+  useEffect(() => {
+    if (!detailedView || !pendingSwitchRef.current) return;
+    pendingSwitchRef.current = false;
+    if (alternatingRef.current) selectSide(activeRef.current === 0 ? 1 : 0);
+  }, [detailedView, selectSide]);
 
   // …and take it back if anything else steals it (clicking a button, or
   // returning to the tab). Bounced through a frame so the click that moved
@@ -212,14 +294,46 @@ export function App() {
   }, [connected, detailedView]);
 
   // Space logs a failed rep. Failures aren't auto-detected, so a mistimed or
-  // aborted attempt is only recorded when the user presses Space.
+  // aborted attempt is only recorded when the user presses Space. A failed rep
+  // is still that side's turn, so when alternating it hands over to the other
+  // side just as a success does.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code === "Space" || e.key === " ") {
         e.preventDefault();
-        // Shift+Space corrects an over-count by decrementing (floored at 0).
-        if (e.shiftKey) setFailures((n) => Math.max(0, n - 1));
-        else setFailures((n) => n + 1);
+        if (e.shiftKey) {
+          // Shift+Space corrects an over-count by decrementing (floored at 0),
+          // and goes back to the side the failure was logged on.
+          const side = failureLogRef.current.pop() ?? activeRef.current;
+          setSides((prev) =>
+            updateSide(prev, side, (s) => ({
+              ...s,
+              failures: Math.max(0, s.failures - 1),
+            })),
+          );
+          if (alternatingRef.current) selectSide(side);
+        } else {
+          const side = activeRef.current;
+          failureLogRef.current.push(side);
+          setSides((prev) =>
+            updateSide(prev, side, (s) => ({
+              ...s,
+              failures: s.failures + 1,
+            })),
+          );
+          if (alternatingRef.current) selectSide(side === 0 ? 1 : 0);
+        }
+      } else if (
+        alternatingRef.current &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        (e.key.toLowerCase() === "l" || e.key.toLowerCase() === "r")
+      ) {
+        // L and R pick a side by hand, e.g. to start on the right or to do two
+        // reps in a row on one side.
+        e.preventDefault();
+        selectSide(e.key.toLowerCase() === "l" ? 0 : 1);
       } else if (e.key === "Enter") {
         // Nothing to submit — Enter just re-arms the field for a new target.
         e.preventDefault();
@@ -228,7 +342,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selectTarget]);
+  }, [selectTarget, selectSide]);
 
   const connect = useCallback(async () => {
     setError(null);
@@ -291,6 +405,10 @@ export function App() {
     return (
       <div className={`app phase-${phase} simplified`}>
         <div className="big-readout">
+          {/* The app picks the side, so say which one to pull with. */}
+          {alternating && (
+            <div className="big-side">{SIDE_LETTERS[active]}</div>
+          )}
           <div className="big-stack">
             <div className={`big-value ${inRange ? "force-good" : "force-bad"}`}>
               {excess < 0 ? "−" : "+"}
@@ -310,6 +428,12 @@ export function App() {
       </div>
     );
   }
+
+  const shownSides: Side[] = alternating ? [0, 1] : [0];
+  const sideClass = (side: Side) =>
+    alternating && side === active ? "active" : "";
+  const sideLabel = (side: Side, label: string) =>
+    alternating ? `${SIDE_NAMES[side]} ${label}` : label;
 
   return (
     <div className={`app phase-${phase}`}>
@@ -334,27 +458,72 @@ export function App() {
         </p>
       )}
 
-      {targetError && <p className="warn">{targetError}</p>}
+      {shownSides.map(
+        (side) =>
+          !isValidTarget(sides[side].targetText) && (
+            <p key={side} className="warn">
+              {alternating
+                ? `The ${SIDE_NAMES[side]} target weight`
+                : "Target weight"}{" "}
+              must be at least {MIN_TARGET_KG} kg — still using{" "}
+              {sides[side].targetKg} kg.
+            </p>
+          ),
+      )}
 
       {error && <p className="warn">{error}</p>}
 
-      <section className="readout">
-        {/* The weights, as one row of tiles matching the counters below. */}
+      <section className={`readout ${alternating ? "alternating" : ""}`}>
+        {/* Keep the press from taking focus off the weight field. Otherwise it
+            is handed straight back with its text selected mid-click, and
+            Chrome ignores a click on a label once text has been selected
+            during it — so only a click on the box itself would register. */}
+        <label
+          className="hint mode-toggle"
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <input
+            type="checkbox"
+            checked={alternating}
+            onChange={(e) => setAlternatingMode(e.target.checked)}
+          />
+          Alternate left and right
+        </label>
+        {alternating && (
+          <p className="hint">
+            Sides swap after each rep. Press <kbd>L</kbd> or <kbd>R</kbd> to
+            choose one.
+          </p>
+        )}
+
+        {/* The weights, as one row of tiles matching the counters below. When
+            alternating, each side gets its own column of target and counter,
+            and the side whose turn it is is highlighted. */}
         <div className="tiles">
-          <label className="tile">
-            <input
-              ref={targetInputRef}
-              type="number"
-              min={MIN_TARGET_KG}
-              step="any"
-              autoFocus
-              value={targetText}
-              aria-invalid={targetError !== null}
-              onChange={(e) => onTargetChange(e.target.value)}
-              onBlur={refocusTarget}
-            />
-            <span className="label">target (kg)</span>
-          </label>
+          {shownSides.map((side) => (
+            <label
+              key={side}
+              className={`tile ${sideClass(side)}`}
+            >
+              <input
+                ref={(el) => {
+                  targetInputRefs.current[side] = el;
+                }}
+                type="number"
+                min={MIN_TARGET_KG}
+                step="any"
+                autoFocus={side === 0}
+                value={sides[side].targetText}
+                aria-invalid={!isValidTarget(sides[side].targetText)}
+                onChange={(e) => onTargetChange(side, e.target.value)}
+                onFocus={() => {
+                  focusedSideRef.current = side;
+                }}
+                onBlur={refocusTarget}
+              />
+              <span className="label">{sideLabel(side, "target (kg)")}</span>
+            </label>
+          ))}
 
           {/* Until the device is talking to us there is no weight to read, so
               connecting takes that slot. */}
@@ -384,22 +553,31 @@ export function App() {
           {/* Orange once a rep has failed, red if the set has run its length
               with a failure in it, green for a clean full set, otherwise
               plain. */}
-          <div
-            className={`tile reps ${
-              failures > 0
-                ? successes + failures >= SET_REPS
-                  ? "set-failed"
-                  : "some-failed"
-                : successes >= SET_REPS
-                  ? "set-succeeded"
-                  : ""
-            }`}
-          >
-            <span className="value">
-              {successes}/{successes + failures}
-            </span>
-            <span className="label">succeeded / total</span>
-          </div>
+          {shownSides.map((side) => {
+            const { successes, failures } = sides[side];
+            return (
+              <div
+                key={side}
+                className={`tile reps ${sideClass(side)} ${
+                  failures > 0
+                    ? successes + failures >= SET_REPS
+                      ? "set-failed"
+                      : "some-failed"
+                    : successes >= SET_REPS
+                      ? "set-succeeded"
+                      : ""
+                }`}
+                onClick={() => selectSide(side)}
+              >
+                <span className="value">
+                  {successes}/{successes + failures}
+                </span>
+                <span className="label">
+                  {sideLabel(side, "succeeded / total")}
+                </span>
+              </div>
+            );
+          })}
           {/* Below the threshold: count up to track rest between reps. Whole
               seconds only — a M:SS clock reads as more precision than a rest
               gap needs, and the sibling counters are bare numbers. */}
@@ -411,8 +589,8 @@ export function App() {
 
         <p className="hint">Successful holds are counted automatically.</p>
         <p className="hint">
-          Press <kbd>Space</kbd> to log a failed rep,{" "}
-          <kbd>Shift</kbd>+<kbd>Space</kbd> to undo one.
+          <kbd>Space</kbd> to log failure, <kbd>Shift</kbd>+<kbd>Space</kbd> to
+          undo
         </p>
       </section>
     </div>
