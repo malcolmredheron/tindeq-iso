@@ -199,7 +199,7 @@ button.tile:hover:not(:disabled) {
   max-width: 100%;
 }
 
-/* The difference from target, coloured by whether the target is being met. */
+/* The difference from target, colored by whether the target is being met. */
 .big-value.force-good {
   color: #57e08a;
 }

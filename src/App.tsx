@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   TindeqProgressor,
-  UserCancelledError,
+  UserCanceledError,
   type ForceSample,
 } from "./tindeq.ts";
 import { playFinalBeep, playHoldBeep, unlockAudio } from "./sounds.ts";
 
 const HOLD_SECONDS = 6;
 const HOLD_MS = HOLD_SECONDS * 1000;
-// Reps in a set; the round counter's colour tracks progress towards it.
+// Reps in a set; the round counter's color tracks progress toward it.
 const SET_REPS = 6;
 // The load that counts as "the user is pulling". Doubles as the floor for the
 // target weight: a mistyped target this low is exceeded by almost any resting
@@ -369,7 +369,7 @@ export function App() {
     } catch (e) {
       setConnState("disconnected");
       deviceRef.current = null;
-      if (e instanceof UserCancelledError) {
+      if (e instanceof UserCanceledError) {
         // User closed the device chooser — not really an error.
         return;
       }
@@ -394,7 +394,7 @@ export function App() {
 
   // While pulling, show the distraction-free view: just the difference from the
   // target and the integer countdown, both large. The total weight stays
-  // visible underneath in a smaller font. The difference is coloured by whether
+  // visible underneath in a smaller font. The difference is colored by whether
   // the target is actually met, so a short pull reads as short at a glance.
   if (simplified) {
     const countdownSec =

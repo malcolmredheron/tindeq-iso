@@ -44,10 +44,10 @@ function withTimeout<T>(
 }
 
 /** Thrown when the user closes the device chooser without picking a device. */
-export class UserCancelledError extends Error {
+export class UserCanceledError extends Error {
   constructor() {
-    super("Device selection cancelled");
-    this.name = "UserCancelledError";
+    super("Device selection canceled");
+    this.name = "UserCanceledError";
   }
 }
 
@@ -121,7 +121,7 @@ export class TindeqProgressor {
       // chooser. Translate it so callers don't confuse it with a missing GATT
       // service/characteristic (which also throws NotFoundError, later).
       if (e instanceof DOMException && e.name === "NotFoundError") {
-        throw new UserCancelledError();
+        throw new UserCanceledError();
       }
       throw e;
     }
